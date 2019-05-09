@@ -14,7 +14,6 @@ import java.util.Collection;
  * @version $Id: ReflectConvertHelper.java,v 1.0 2018-06-27 18:41 halley.qiu
  * @date 2018/06/27 18:41
  */
-@Slf4j
 public class ReflectConvertHelper {
 
     /**
