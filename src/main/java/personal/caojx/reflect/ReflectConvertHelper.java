@@ -1,11 +1,16 @@
 package personal.caojx.reflect;
 
-import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.SerializationUtils;
 
+import java.io.*;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * ReflectConvertHelper 属性复制工具类
@@ -39,7 +44,7 @@ public class ReflectConvertHelper {
     }
 
     /**
-     * 属性拷贝
+     * 方式1：通过反射实现深拷贝
      *
      * @param source 源对象
      * @param target 目标对象
@@ -83,5 +88,68 @@ public class ReflectConvertHelper {
         }
         System.out.println("end to fieldCopy");
         return target;
+    }
+
+    /**
+     * 方式2：通过序列化方法实现深拷贝
+     * 注意每个需要序列化的类都要实现 Serializable 接口，如果有某个属性不需要序列化，可以将其声明为 transient，即将其排除在克隆属性之外
+     *
+     * @param source
+     * @return
+     */
+    public static Object fieldCopyBySerialization(Object source) {
+        try {
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            ObjectOutputStream oos = new ObjectOutputStream(bos);
+            oos.writeObject(source);
+            oos.flush();
+            ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bos.toByteArray()));
+            return ois.readObject();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /**
+     * 方式3：通过序列化方法实现深拷贝，与方式2一样需要实现序列化接口
+     *
+     * @param source
+     * @return
+     */
+    public static Object fieldCopyBySerialization2(Object source) {
+        return SerializationUtils.clone((Serializable) source);
+    }
+
+
+    /**
+     * 方式4：通过对象转json再转对象实现深拷贝
+     *
+     * @param obj
+     * @return
+     */
+    public static Object fieldCopyByJson(Object obj) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String json = objectMapper.writeValueAsString(obj);
+            return objectMapper.readValue(json, obj.getClass());
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static void main(String[] args) {
+        List list = new ArrayList<>();
+        list.add("a");
+
+        List list2 = new ArrayList();
+        fieldCopy(list, list2);
+        System.out.println(list == list2); //false
+
+        List list3 = (List) fieldCopyByJson(list);
+        System.out.println(list == list3); //false
     }
 }
