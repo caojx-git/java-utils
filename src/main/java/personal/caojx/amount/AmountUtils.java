@@ -69,7 +69,7 @@ public class AmountUtils {
         String newContent = StringUtils.replace(content, " ", "");
         Pattern pattern = Pattern.compile("((^[0-9]+(.[0-9]+)?$)|((([1-9]\\d*[\\d,，]*\\.?\\d*)|(0\\.[0-9]+))(元|万元|万)))");
         Matcher matcher = pattern.matcher(newContent);
-        while (matcher.find()) {
+        if (matcher.find()) {
             return matcher.group(0);
         }
         return "";
@@ -137,7 +137,7 @@ public class AmountUtils {
         String newContent = StringUtils.replace(content, " ", "");
         Pattern pattern = Pattern.compile("[壹贰叁肆伍陆柒捌玖拾佰仟万亿元圆角分厘零整正]+");
         Matcher matcher = pattern.matcher(newContent);
-        while (matcher.find()) {
+        if (matcher.find()) {
             return matcher.group(0);
         }
         return "";
