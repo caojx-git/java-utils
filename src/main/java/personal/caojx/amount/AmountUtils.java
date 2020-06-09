@@ -13,6 +13,7 @@ import java.util.regex.Pattern;
  * 中文金额转数字参考文章：
  * https://www.oschina.net/question/930697_2287851?sort=default
  * https://www.917118.com/tool/rmb.html
+ * https://blog.csdn.net/Moneywa/article/details/97233159
  * <p>
  * <p>
  * 数字金额转大写金额参考如下文章：
@@ -24,6 +25,27 @@ import java.util.regex.Pattern;
  */
 //@Slf4j
 public class AmountUtils {
+
+    /**
+     * 纯数字、数字加带单位的金额正则
+     */
+    private static final Pattern numberAmountRegx = Pattern.compile("((^[0-9]+(.[0-9]+)?$)|((([1-9]\\d*[\\d,，]*\\.?\\d*)|(0\\.[0-9]+))(元|万元|万)))");
+
+    /**
+     * 中文大写金额正则 [壹贰叁肆伍陆柒捌玖拾]+[壹贰叁肆伍陆柒捌玖拾佰仟万亿元圆角分厘零整正]+
+     */
+    private static final Pattern chineseAmountRegx = Pattern.compile("[壹贰叁肆伍陆柒捌玖拾]+[壹贰叁肆伍陆柒捌玖拾佰仟万亿元圆角分厘零整正]+");
+
+    /**
+     * 阿拉伯数字对应大写表
+     */
+    private static final char[] numArray = new char[]{'零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖'};
+
+    /**
+     * 金额单位数组
+     */
+    private static final char[] unitArray = new char[]{'整', '厘', '分', '角', '圆', '拾', '佰', '仟', '万', '亿'};
+
 
     /**
      * 从文本中提取金额，并将提取到的金额值转为元
@@ -67,8 +89,7 @@ public class AmountUtils {
      */
     private static String getNumberAmountContent(String content) {
         String newContent = StringUtils.replace(content, " ", "");
-        Pattern pattern = Pattern.compile("((^[0-9]+(.[0-9]+)?$)|((([1-9]\\d*[\\d,，]*\\.?\\d*)|(0\\.[0-9]+))(元|万元|万)))");
-        Matcher matcher = pattern.matcher(newContent);
+        Matcher matcher = numberAmountRegx.matcher(newContent);
         if (matcher.find()) {
             return matcher.group(0);
         }
@@ -104,7 +125,6 @@ public class AmountUtils {
         return amount;
     }
 
-
     /**
      * 移除单位
      *
@@ -112,9 +132,11 @@ public class AmountUtils {
      * @return
      */
     private static String removeUnit(String content) {
-        content = StringUtils.replace(content, "元", "");
-        content = StringUtils.replace(content, "万元", "");
-        return StringUtils.replace(content, "万", "");
+        String[] regex = {"元", "万元", "万"};
+        for (String value : regex) {
+            content = StringUtils.replace(content, value, "");
+        }
+        return content;
     }
 
     /**
@@ -135,14 +157,12 @@ public class AmountUtils {
      */
     private static String getChineseAmountContent(String content) {
         String newContent = StringUtils.replace(content, " ", "");
-        Pattern pattern = Pattern.compile("[壹贰叁肆伍陆柒捌玖拾佰仟万亿元圆角分厘零整正]+");
-        Matcher matcher = pattern.matcher(newContent);
+        Matcher matcher = chineseAmountRegx.matcher(newContent);
         if (matcher.find()) {
             return matcher.group(0);
         }
         return "";
     }
-
 
     /**
      * 中文金额转具体数字金额
@@ -150,41 +170,22 @@ public class AmountUtils {
      * @param chineseAmount 中文金额字符串
      * @return
      */
-    private static BigDecimal chineseAmount2Number(String chineseAmount) {
+    public static BigDecimal chineseAmount2Number(String chineseAmount) {
 //        log.info("Request to AmountUtils chineseAmount2Number chineseAmount :{}", chineseAmount);
+        chineseAmount = chineseAmount.replace("元", "圆");
+        chineseAmount = chineseAmount.replace("正", "整");
 
         BigDecimal result = BigDecimal.ZERO;
-
-        // 存放一个单位的数字如：十万
-        BigDecimal temp = BigDecimal.ZERO;
-
-        // 判断当前单位后边是否有更大的单位
-        boolean isLargerUnitLater = false;
-
-        // 阿拉伯数字对应大写表
-        char[] numArray = new char[]{'零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖'};
-
-        // 金额单位数组
-        char[] unitArray = new char[]{'拾', '佰', '仟', '万', '亿', '元', '圆', '角', '分', '厘', '正', '整'};
-
+        BigDecimal num = BigDecimal.ZERO;
         for (int i = 0; i < chineseAmount.length(); i++) {
-
             // 判断是否是金额单位
             boolean isUnit = true;
 
             char c = chineseAmount.charAt(i);
-
             for (int j = 0; j < numArray.length; j++) {
                 // 非单位，即数字
                 if (c == numArray[j]) {
-                    // 如果后边没有更大的单位，则在进行下一个单位金额计算之前，先把上一个单位金额值添加到结果中
-                    if (!isLargerUnitLater) {
-                        result = result.add(temp);
-                        temp = BigDecimal.ZERO;
-                    }
-
-                    // 如果当前金额后有更大的单位，累加数字值的得到最大单位的值，下表对应数值的值
-                    temp = temp.add(BigDecimal.valueOf(j));
+                    num = BigDecimal.valueOf(j);
                     isUnit = false;
                     break;
                 }
@@ -193,57 +194,30 @@ public class AmountUtils {
             // 如果是单位字符
             if (isUnit) {
 
-                // 将结果转换成对应单位的值 {'拾', '佰', '仟', '万', '亿', '元', '圆', '角', '分', '厘', '正', '整'}
-                for (int j = 0; j < unitArray.length; j++) {
-                    if (c == unitArray[j]) {
-                        switch (j) {
-                            case 0:
-                                temp = temp.multiply(BigDecimal.valueOf(10));
-                                break;
-                            case 1:
-                                temp = temp.multiply(BigDecimal.valueOf(100));
-                                break;
-                            case 2:
-                                temp = temp.multiply(BigDecimal.valueOf(1000));
-                                break;
-                            case 3:
-                                temp = temp.multiply(BigDecimal.valueOf(10000));
-                                break;
-                            case 4:
-                                temp = temp.multiply(BigDecimal.valueOf(100000000));
-                                break;
-                            case 5:
-                            case 6:
-                                temp = temp.multiply(BigDecimal.valueOf(1));
-                                break;
-                            case 7:
-                                temp = temp.multiply(BigDecimal.valueOf(0.1));
-                                break;
-                            case 8:
-                                temp = temp.multiply(BigDecimal.valueOf(0.01));
-                                break;
-                            case 9:
-                                temp = temp.multiply(BigDecimal.valueOf(0.001));
-                                break;
-                            default:
-                                break;
-                        }
-                    }
+                // 第一个就是单位，如：拾伍万圆整
+                if (i == 0) {
+                    num = BigDecimal.ONE;
                 }
 
-                // 判断当前单位字符后边是否有更大的单位字符
-                isLargerUnitLater = false;
-                for (int k = i; k < chineseAmount.length(); k++) {
-                    if (getChineseAmountUnitOrder(c) < getChineseAmountUnitOrder(chineseAmount.charAt(k))) {
-                        isLargerUnitLater = true;
-                        break;
-                    }
-                }
-            }
+                // 获取当前单位字符后的最大单位字符的索引，以及单位值
+                int maxUnitIndex = getMaxUnitIndexAfterCurrentUnitChar(i, chineseAmount);
+                BigDecimal maxUnit = getUnitByUnitIndex(maxUnitIndex);
 
-            // 遍历到最后一个字符
-            if (i == chineseAmount.length() - 1) {
+                // 获取当前单位字符的索引，以及单位值
+                int currentUnitIndex = getUnitIndex(c);
+                BigDecimal currentUnit = getUnit(c);
+
+                // 计算当前数值的值
+                BigDecimal temp = num.multiply(currentUnit);
+
+                // 当前单位不是大单位，则需要乘最大单位值
+                if (currentUnitIndex != maxUnitIndex) {
+                    temp = temp.multiply(maxUnit);
+                }
+
+                // 做加法
                 result = result.add(temp);
+                num = BigDecimal.ZERO;
             }
         }
 
@@ -252,37 +226,96 @@ public class AmountUtils {
     }
 
     /**
-     * 获取中文金额单位排序，从小到大，从0开始
-     * <p>
-     * {'拾', '佰', '仟', '万', '亿', '元', '圆', '角', '分', '厘', '正', '整'}
-     * <p>
+     * 获取当前单位字符后的最大单位
      *
-     * @param unitChar 金额单位
+     * @param currentIndex  当前字符索引
+     * @param chineseAmount 中文金额字符串
      * @return
      */
-    private static int getChineseAmountUnitOrder(char unitChar) {
-        if (unitChar == '正' || unitChar == '整') {
-            return 0;
-        } else if (unitChar == '厘') {
-            return 1;
-        } else if (unitChar == '分') {
-            return 2;
-        } else if (unitChar == '角') {
-            return 3;
-        } else if (unitChar == '元' || unitChar == '圆') {
-            return 4;
-        } else if (unitChar == '拾') {
-            return 5;
-        } else if (unitChar == '佰') {
-            return 6;
-        } else if (unitChar == '仟') {
-            return 7;
-        } else if (unitChar == '万') {
-            return 8;
-        } else if (unitChar == '亿') {
-            return 9;
+    private static int getMaxUnitIndexAfterCurrentUnitChar(int currentIndex, String chineseAmount) {
+        int maxUnitIndex = 0;
+        for (int i = currentIndex; i < chineseAmount.length(); i++) {
+            int unitIndex = getUnitIndex(chineseAmount.charAt(i));
+            if (maxUnitIndex < unitIndex) {
+                maxUnitIndex = unitIndex;
+            }
+        }
+        return maxUnitIndex;
+    }
+
+    /**
+     * 获取单位字符的索引
+     *
+     * @param unitChar 单位字符
+     * @return
+     */
+    private static int getUnitIndex(char unitChar) {
+        for (int j = 0; j < unitArray.length; j++) {
+            if (unitChar == unitArray[j]) {
+                return j;
+            }
         }
         return 0;
+    }
+
+    /**
+     * 获取单位字符对应的单位值
+     * <p>
+     * 单位字符 {'整', '厘', '分', '角', '圆', '拾', '佰', '仟', '万', '亿'}
+     *
+     * @param unitChar 单位字符
+     * @return
+     */
+    private static BigDecimal getUnit(char unitChar) {
+        int unitIndex = getUnitIndex(unitChar);
+        return getUnitByUnitIndex(unitIndex);
+    }
+
+    /**
+     * 根据单位索引获取对应的单位值
+     * <p>
+     * 单位字符 {'整', '厘', '分', '角', '圆', '拾', '佰', '仟', '万', '亿'}
+     *
+     * @param unitIndex 单位索引
+     * @return
+     */
+    private static BigDecimal getUnitByUnitIndex(int unitIndex) {
+        BigDecimal num = BigDecimal.ZERO;
+        switch (unitIndex) {
+            case 0:
+                num = BigDecimal.valueOf(0);
+                break;
+            case 1:
+                num = BigDecimal.valueOf(0.001);
+                break;
+            case 2:
+                num = BigDecimal.valueOf(0.01);
+                break;
+            case 3:
+                num = BigDecimal.valueOf(0.1);
+                break;
+            case 4:
+                num = BigDecimal.valueOf(1);
+                break;
+            case 5:
+                num = BigDecimal.valueOf(10);
+                break;
+            case 6:
+                num = BigDecimal.valueOf(100);
+                break;
+            case 7:
+                num = BigDecimal.valueOf(1000);
+                break;
+            case 8:
+                num = BigDecimal.valueOf(10000);
+                break;
+            case 9:
+                num = BigDecimal.valueOf(100000000);
+                break;
+            default:
+                break;
+        }
+        return num;
     }
 
 
@@ -436,12 +469,16 @@ public class AmountUtils {
         String s3 = "捌万陆仟肆佰壹拾圆整";
         String s4 = "壹万伍仟肆佰壹拾元贰角捌分肆厘";
         String s5 = "拾壹亿壹仟万伍仟肆佰壹拾元贰角捌分肆厘";
+        String s6 = "壹佰壹拾万元整";
+        String s7 = "整当事人的行为，xx成分，监督检查部门应当责令停止违法行为，消除影响，可以根据情节处以一万元以上二十万元以下的罚款”之规定。我局决定对当事人作出如下行政处罚：\\\\n1、责令停止发布违规广告。\\\\n2、罚没合计:壹佰壹拾万元整。";
 
         System.out.printf("%s = %s\n", s1, AmountUtils.getAmount(s1));
         System.out.printf("%s = %s\n", s2, AmountUtils.getAmount(s2));
         System.out.printf("%s = %s\n", s3, AmountUtils.getAmount(s3));
         System.out.printf("%s = %s\n", s4, AmountUtils.getAmount(s4));
         System.out.printf("%s = %s\n", s5, AmountUtils.getAmount(s5));
+        System.out.printf("%s = %s\n", s6, AmountUtils.getAmount(s6));
+        System.out.printf("%s = %s\n", s7, AmountUtils.getAmount(s7));
 
         BigDecimal b1 = BigDecimal.valueOf(10000);
         BigDecimal b2 = BigDecimal.valueOf(100000000001.1);
